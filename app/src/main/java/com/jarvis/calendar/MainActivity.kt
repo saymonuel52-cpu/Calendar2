@@ -19,7 +19,6 @@ import androidx.room.Room
 import com.jarvis.calendar.data.*
 import kotlinx.coroutines.launch
 import java.io.File
-import dev.ffmpegkit.maintained.llama.android.Llama
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,23 +46,15 @@ fun MainScreen(db: AppDatabase) {
     var isModelReady by remember { mutableStateOf(false) }
     var aiResponse by remember { mutableStateOf("") }
     var userPrompt by remember { mutableStateOf("") }
-    var llamaInstance by remember { mutableStateOf<Llama?>(null) }
 
     val modelFile = File(context.getExternalFilesDir(null), "qwen2.5-1.5b-instruct-q4_k_m.gguf")
     
     LaunchedEffect(Unit) {
         isModelReady = modelFile.exists() && modelFile.length() > 500_000_000
-        if (isModelReady) {
-            try {
-                llamaInstance = Llama(modelFile.absolutePath)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Ошибка загрузки модели: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
     }
 
     Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
-        Text(" Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
+        Text("🤖 Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(12.dp))
 
         Card(
@@ -72,7 +63,7 @@ fun MainScreen(db: AppDatabase) {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = if (isModelReady) "✅ ИИ готов к работе" else "📥 Скачать ИИ-модель (~1 ГБ)",
+                    text = if (isModelReady) "✅ Модель загружена" else "📥 Скачать ИИ-модель (~1 ГБ)",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White
                 )
@@ -86,21 +77,22 @@ fun MainScreen(db: AppDatabase) {
                         Button(onClick = {
                             isDownloading = true
                             coroutineScope.launch {
-                                // Здесь будет реальное скачивание через OkHttp
+                                // Симуляция загрузки для проверки UI. 
+                                // Реальный OkHttp загрузчик добавим следующим шагом, когда утвердим API движка.
                                 for (i in 1..10) {
                                     progress = i * 10
                                     kotlinx.coroutines.delay(300)
                                 }
                                 isDownloading = false
                                 isModelReady = true
-                                Toast.makeText(context, "Модель загружена! Перезапустите приложение.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Модель успешно загружена!", Toast.LENGTH_LONG).show()
                             }
                         }, modifier = Modifier.align(Alignment.End)) {
                             Text("Начать загрузку")
                         }
                     }
                 } else {
-                    Text("Модель загружена и инициализирована", color = Color.White.copy(alpha = 0.9f))
+                    Text("Готово к подключению проверенного движка ИИ.", color = Color.White.copy(alpha = 0.9f))
                     Spacer(modifier = Modifier.height(8.dp))
                     Row {
                         OutlinedTextField(
@@ -112,19 +104,9 @@ fun MainScreen(db: AppDatabase) {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
-                            if (userPrompt.isNotBlank() && llamaInstance != null) {
-                                coroutineScope.launch {
-                                    aiResponse = "Думаю..."
-                                    try {
-                                        val response = llamaInstance!!.createCompletion(userPrompt, 256)
-                                        aiResponse = response
-                                    } catch (e: Exception) {
-                                        aiResponse = "Ошибка: ${e.message}"
-                                    }
-                                }
+                            if (userPrompt.isNotBlank()) {
+                                aiResponse = "⏳ Подключаю проверенную библиотеку ИИ... (Следующий шаг)"
                                 userPrompt = ""
-                            } else if (llamaInstance == null) {
-                                Toast.makeText(context, "Модель не инициализирована. Перезапустите приложение.", Toast.LENGTH_SHORT).show()
                             }
                         }) {
                             Text("🚀")
