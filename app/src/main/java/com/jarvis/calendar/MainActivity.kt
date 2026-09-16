@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
-import com.jarvis.calendar.ai.LocalModel
+import com.jarvis.calendar.ai.MLCAI
 import com.jarvis.calendar.data.*
 import kotlinx.coroutines.launch
 
@@ -41,8 +41,8 @@ fun MainScreen(db: AppDatabase) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     
-    val localModel = remember { LocalModel(context) }
-    var isModelReady by remember { mutableStateOf(localModel.isModelDownloaded()) }
+    val mlcAI = remember { MLCAI(context) }
+    var isModelReady by remember { mutableStateOf(mlcAI.isModelDownloaded()) }
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0) }
     var aiResponse by remember { mutableStateOf("") }
@@ -52,20 +52,20 @@ fun MainScreen(db: AppDatabase) {
         Text("🤖 Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Кнопка скачать ИИ или статус
+        // Кнопка скачать ИИ
         if (!isModelReady) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(" Скачать ИИ-помощника", 
+                    Text("📥 Скачать ИИ-помощника", 
                          style = MaterialTheme.typography.titleMedium,
                          color = Color.White)
-                    Text("Локальная модель (~1 ГБ) для работы без интернета", 
+                    Text("Локальная модель (~1 ГБ) работает без интернета", 
                          style = MaterialTheme.typography.bodySmall,
                          color = Color.White.copy(alpha = 0.8f))
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     if (isDownloading) {
                         LinearProgressIndicator(
@@ -74,23 +74,26 @@ fun MainScreen(db: AppDatabase) {
                             color = Color.White
                         )
                         Text("Загрузка: $downloadProgress%", 
-                             color = Color.White,
-                             fontSize = 12.sp)
+                             color = Color.White, fontSize = 12.sp)
                     } else {
-                        Button(onClick = {
-                            isDownloading = true
-                            coroutineScope.launch {
-                                val result = localModel.downloadModel { progress ->
-                                    downloadProgress = progress
+                        Button(
+                            onClick = {
+                                isDownloading = true
+                                coroutineScope.launch {
+                                    val result = mlcAI.downloadModel { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    isDownloading = false
+                                    isModelReady = result.isSuccess
+                                    Toast.makeText(context, 
+                                        result.getOrElse { "Ошибка: ${it.message}" }, 
+                                        Toast.LENGTH_LONG).show()
                                 }
-                                isDownloading = false
-                                isModelReady = result.isSuccess
-                                Toast.makeText(context, 
-                                    result.getOrElse { "Ошибка: ${it.message}" }, 
-                                    Toast.LENGTH_LONG).show()
-                            }
-                        }, modifier = Modifier.align(Alignment.End)) {
-                            Text("Начать загрузку")
+                            },
+                            modifier = Modifier.align(Alignment.End),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                        ) {
+                            Text("Начать загрузку", color = Color(0xFF2196F3))
                         }
                     }
                 }
@@ -110,12 +113,12 @@ fun MainScreen(db: AppDatabase) {
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // Чат с ИИ (только если модель готова)
+        // Чат с ИИ
         if (isModelReady) {
             Card(modifier = Modifier.fillMaxWidth(), 
                  colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text(" Спроси Джарвиса:", style = MaterialTheme.typography.titleSmall)
+                    Text("💬 Спроси Джарвиса:", style = MaterialTheme.typography.titleSmall)
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -131,7 +134,7 @@ fun MainScreen(db: AppDatabase) {
                             if (userQuestion.isNotBlank()) {
                                 coroutineScope.launch {
                                     aiResponse = "Думаю..."
-                                    aiResponse = localModel.generate(userQuestion)
+                                    aiResponse = mlcAI.chat(userQuestion)
                                 }
                                 userQuestion = ""
                             }
