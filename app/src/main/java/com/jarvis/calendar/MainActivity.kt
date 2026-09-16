@@ -19,11 +19,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.room.Room
 import ai.nobodywho.Chat
 import com.jarvis.calendar.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,12 +46,10 @@ fun MainScreen(db: AppDatabase) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     
-    // Состояния для ИИ
     var isModelReady by remember { mutableStateOf(false) }
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
     var downloadStatus by remember { mutableStateOf("") }
-    var startTime by remember { mutableStateOf(0L) }
     var chatInstance by remember { mutableStateOf<Chat?>(null) }
     var aiResponse by remember { mutableStateOf("") }
     var userPrompt by remember { mutableStateOf("") }
@@ -75,76 +73,47 @@ fun MainScreen(db: AppDatabase) {
                 
                 if (!isModelReady) {
                     if (isDownloading) {
-                        // Анимированный индикатор
                         LinearProgressIndicator(
                             progress = downloadProgress, 
                             modifier = Modifier.fillMaxWidth(), 
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Текстовый статус
+                        Text(downloadStatus, color = Color.White, fontSize = 14.sp)
                         Text(
-                            text = downloadStatus,
-                            color = Color.White,
-                            fontSize = 14.sp
-                        )
-                        
-                        // Время загрузки
-                        val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000
-                        Text(
-                            text = "⏱ Время загрузки: ${elapsedSeconds}s",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 12.sp
-                        )
-                        
-                        // Подсказка
-                        Text(
-                            text = "💡 Размер модели: ~1 ГБ. При медленном интернете это может занять 10-15 минут.",
+                            "⏳ Это может занять 5-15 минут в зависимости от интернета",
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 11.sp,
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     } else {
-                        Text(
-                            text = "Нажмите кнопку для загрузки модели Qwen 2.5 1.5B",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
+                        Text("Нажмите для загрузки модели Qwen 2.5 1.5B (~1 ГБ)", color = Color.White.copy(alpha = 0.8f))
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(onClick = {
                             isDownloading = true
-                            startTime = System.currentTimeMillis()
-                            downloadProgress = 0.1f
-                            downloadStatus = " Инициализация загрузки..."
+                            downloadProgress = 0f
+                            downloadStatus = "🔄 Инициализация..."
                             
                             (context as MainActivity).lifecycleScope.launch {
-                                // Симуляция обновления прогресса (так как NobodyWho не даёт callback'ов)
-                                launch {
-                                    while (isDownloading) {
-                                        delay(2000)
-                                        if (downloadProgress < 0.9f) {
-                                            downloadProgress += 0.05f
-                                            downloadStatus = "⬇️ Загрузка модели с Hugging Face...\n${(downloadProgress * 100).toInt()}%"
-                                        }
-                                    }
-                                }
-                                
                                 try {
-                                    downloadStatus = "🔗 Подключение к Hugging Face..."
-                                    delay(500)
+                                    // Запускаем загрузку в ФОНОВОМ потоке, чтобы не блокировать UI
+                                    withContext(Dispatchers.IO) {
+                                        downloadStatus = "🔗 Подключение к Hugging Face..."
+                                        downloadProgress = 0.1f
+                                        
+                                        // NobodyWho скачивает модель в фоне
+                                        chatInstance = Chat.fromPath("hf://Qwen/Qwen2.5-1.5B-Instruct-GGUF/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+                                        
+                                        downloadProgress = 1.0f
+                                    }
                                     
-                                    downloadStatus = "📥 Скачивание qwen2.5-1.5b-instruct-q4_k_m.gguf..."
-                                    chatInstance = Chat.fromPath("hf://Qwen/Qwen2.5-1.5B-Instruct-GGUF/qwen2.5-1.5b-instruct-q4_k_m.gguf")
-                                    
-                                    downloadProgress = 1.0f
                                     isModelReady = true
                                     isDownloading = false
-                                    Toast.makeText(context, "✅ Модель успешно загружена!", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "✅ Модель загружена!", Toast.LENGTH_LONG).show()
                                 } catch (e: Exception) {
                                     isDownloading = false
-                                    downloadStatus = "❌ Ошибка: ${e.message?.take(100)}"
-                                    Toast.makeText(context, "Ошибка загрузки: ${e.message}", Toast.LENGTH_LONG).show()
+                                    downloadStatus = "❌ Ошибка: ${e.message?.take(150)}"
+                                    Toast.makeText(context, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }, modifier = Modifier.align(Alignment.End)) {
@@ -152,7 +121,7 @@ fun MainScreen(db: AppDatabase) {
                         }
                     }
                 } else {
-                    Text("Модель Qwen 2.5 1.5B загружена и работает локально.", color = Color.White.copy(alpha = 0.9f))
+                    Text("Модель загружена и работает локально.", color = Color.White.copy(alpha = 0.9f))
                     Spacer(modifier = Modifier.height(8.dp))
                     Row {
                         OutlinedTextField(
@@ -176,7 +145,7 @@ fun MainScreen(db: AppDatabase) {
                                             aiResponse += token
                                         }
                                     } catch (e: Exception) {
-                                        aiResponse = "Ошибка генерации: ${e.message}"
+                                        aiResponse = "Ошибка: ${e.message}"
                                     } finally {
                                         isGenerating = false
                                     }
