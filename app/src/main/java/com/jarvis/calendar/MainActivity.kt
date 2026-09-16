@@ -6,10 +6,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import com.jarvis.calendar.data.*
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,12 +31,13 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(db: AppDatabase) {
     val tabs by db.dynamicDao().allTabs().collectAsState(initial = emptyList())
     var newTabName by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
     
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
         Text("Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
         
-        Row {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = newTabName,
                 onValueChange = { newTabName = it },
@@ -44,7 +47,7 @@ fun MainScreen(db: AppDatabase) {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTabName.isNotBlank()) {
-                    kotlinx.coroutines.GlobalScope.launch {
+                    coroutineScope.launch {
                         db.dynamicDao().insertTab(CustomTab(name = newTabName))
                     }
                     newTabName = ""
@@ -56,9 +59,13 @@ fun MainScreen(db: AppDatabase) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        tabs.forEach { tab ->
-            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text("${tab.icon} ${tab.name}", modifier = Modifier.padding(16.dp))
+        if (tabs.isEmpty()) {
+            Text("Пока нет вкладок. Создайте первую!", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            tabs.forEach { tab ->
+                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text("${tab.icon} ${tab.name}", modifier = Modifier.padding(16.dp))
+                }
             }
         }
     }

@@ -12,7 +12,7 @@ data class CustomTab(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "custom_fields", foreignKeys = [ForeignKey(entity = CustomTab::class, parentColumns = ["id"], childColumns = ["tabId"], onDelete = ForeignKey.CASCADE)])
+@Entity(tableName = "custom_fields", indices = [Index(value = ["tabId"])], foreignKeys = [ForeignKey(entity = CustomTab::class, parentColumns = ["id"], childColumns = ["tabId"], onDelete = ForeignKey.CASCADE)])
 data class CustomField(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val tabId: Long,
@@ -22,7 +22,7 @@ data class CustomField(
     val order: Int = 0
 )
 
-@Entity(tableName = "custom_data", foreignKeys = [ForeignKey(entity = CustomTab::class, parentColumns = ["id"], childColumns = ["tabId"], onDelete = ForeignKey.CASCADE)])
+@Entity(tableName = "custom_data", indices = [Index(value = ["tabId"])], foreignKeys = [ForeignKey(entity = CustomTab::class, parentColumns = ["id"], childColumns = ["tabId"], onDelete = ForeignKey.CASCADE)])
 data class CustomData(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val tabId: Long,
@@ -55,7 +55,7 @@ interface DynamicDao {
     suspend fun insertData(data: CustomData): Long
 }
 
-@Database(entities = [CustomTab::class, CustomField::class, CustomData::class], version = 1)
+@Database(entities = [CustomTab::class, CustomField::class, CustomData::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dynamicDao(): DynamicDao
 }
