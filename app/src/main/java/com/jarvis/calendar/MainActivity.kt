@@ -15,10 +15,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
 import androidx.room.Room
+import ai.nobodywho.Chat
 import com.jarvis.calendar.data.*
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,17 +43,14 @@ fun MainScreen(db: AppDatabase) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     
-    var isDownloading by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0) }
+    // Состояния для ИИ
     var isModelReady by remember { mutableStateOf(false) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
+    var chatInstance by remember { mutableStateOf<Chat?>(null) }
     var aiResponse by remember { mutableStateOf("") }
     var userPrompt by remember { mutableStateOf("") }
-
-    val modelFile = File(context.getExternalFilesDir(null), "qwen2.5-1.5b-instruct-q4_k_m.gguf")
-    
-    LaunchedEffect(Unit) {
-        isModelReady = modelFile.exists() && modelFile.length() > 500_000_000
-    }
+    var isGenerating by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
         Text("🤖 Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
@@ -63,7 +62,7 @@ fun MainScreen(db: AppDatabase) {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = if (isModelReady) "✅ Модель загружена" else "📥 Скачать ИИ-модель (~1 ГБ)",
+                    text = if (isModelReady) "✅ ИИ готов к работе" else "📥 Скачать ИИ-модель (~1 ГБ)",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White
                 )
@@ -71,28 +70,31 @@ fun MainScreen(db: AppDatabase) {
                 
                 if (!isModelReady) {
                     if (isDownloading) {
-                        LinearProgressIndicator(progress = progress / 100f, modifier = Modifier.fillMaxWidth(), color = Color.White)
-                        Text("Загрузка: $progress%", color = Color.White)
+                        LinearProgressIndicator(progress = downloadProgress, modifier = Modifier.fillMaxWidth(), color = Color.White)
+                        Text("Загрузка модели с Hugging Face...", color = Color.White)
                     } else {
                         Button(onClick = {
                             isDownloading = true
-                            coroutineScope.launch {
-                                // Симуляция загрузки для проверки UI. 
-                                // Реальный OkHttp загрузчик добавим следующим шагом, когда утвердим API движка.
-                                for (i in 1..10) {
-                                    progress = i * 10
-                                    kotlinx.coroutines.delay(300)
+                            // Используем lifecycleScope Activity для безопасной работы с корутинами
+                            (context as MainActivity).lifecycleScope.launch {
+                                try {
+                                    // NobodyWho умеет сам скачивать модель по hf:// ссылке!
+                                    // Используем легкую Qwen 1.5B для быстрой работы на телефоне
+                                    chatInstance = Chat.fromPath("hf://Qwen/Qwen2.5-1.5B-Instruct-GGUF/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+                                    isModelReady = true
+                                    isDownloading = false
+                                    Toast.makeText(context, "Модель успешно загружена и инициализирована!", Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    isDownloading = false
+                                    Toast.makeText(context, "Ошибка загрузки: ${e.message}", Toast.LENGTH_LONG).show()
                                 }
-                                isDownloading = false
-                                isModelReady = true
-                                Toast.makeText(context, "Модель успешно загружена!", Toast.LENGTH_LONG).show()
                             }
                         }, modifier = Modifier.align(Alignment.End)) {
                             Text("Начать загрузку")
                         }
                     }
                 } else {
-                    Text("Готово к подключению проверенного движка ИИ.", color = Color.White.copy(alpha = 0.9f))
+                    Text("Модель Qwen 2.5 1.5B загружена и работает локально.", color = Color.White.copy(alpha = 0.9f))
                     Spacer(modifier = Modifier.height(8.dp))
                     Row {
                         OutlinedTextField(
@@ -100,21 +102,37 @@ fun MainScreen(db: AppDatabase) {
                             onValueChange = { userPrompt = it },
                             label = { Text("Ваш вопрос...") },
                             modifier = Modifier.weight(1f),
-                            singleLine = true
+                            singleLine = true,
+                            enabled = !isGenerating
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
-                            if (userPrompt.isNotBlank()) {
-                                aiResponse = "⏳ Подключаю проверенную библиотеку ИИ... (Следующий шаг)"
+                            if (userPrompt.isNotBlank() && chatInstance != null) {
+                                isGenerating = true
+                                aiResponse = ""
+                                (context as MainActivity).lifecycleScope.launch {
+                                    try {
+                                        // Потоковая генерация токенов в реальном времени!
+                                        chatInstance!!.ask(userPrompt).asFlow().catch { e ->
+                                            aiResponse += "\n[Ошибка: ${e.message}]"
+                                        }.collect { token ->
+                                            aiResponse += token
+                                        }
+                                    } catch (e: Exception) {
+                                        aiResponse = "Ошибка генерации: ${e.message}"
+                                    } finally {
+                                        isGenerating = false
+                                    }
+                                }
                                 userPrompt = ""
                             }
-                        }) {
-                            Text("🚀")
+                        }, enabled = !isGenerating && chatInstance != null) {
+                            Text(if (isGenerating) "⏳" else "🚀")
                         }
                     }
                     if (aiResponse.isNotBlank()) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(aiResponse, color = Color.White)
+                        Text(aiResponse, color = Color.White, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }

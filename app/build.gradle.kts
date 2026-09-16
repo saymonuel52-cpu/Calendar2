@@ -11,8 +11,8 @@ android {
         applicationId = "com.jarvis.calendar"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "6.0-Final"
+        versionCode = 13
+        versionName = "7.0-Real-AI"
     }
     buildTypes { 
         release { 
@@ -52,10 +52,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.json:json:20231013")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     
-    // 🎯 СЕРЕБРЯНАЯ ПУЛЯ: Готовая prebuilt библиотека llama.cpp для Android
-    // Не требует NDK, работает из коробки, содержит нативные .so файлы
-    implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
+    // 🎯 ПРОВЕРЕННАЯ БИБЛИОТЕКА ДЛЯ ЗАПУСКА LLM НА ANDROID (без NDK)
+    implementation("ai.nobodywho:nobodywho-android:3.0.0")
 }
