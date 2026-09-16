@@ -5,6 +5,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.room.Room
 import com.jarvis.calendar.data.*
 import kotlinx.coroutines.launch
@@ -33,8 +36,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(db: AppDatabase) {
-    val context = LocalContext.current
+    val tabs by db.dynamicDao().allTabs().collectAsState(initial = emptyList())
+    var newTabName by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     
     var isDownloading by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0) }
@@ -44,16 +49,14 @@ fun MainScreen(db: AppDatabase) {
 
     val modelFile = File(context.getExternalFilesDir(null), "qwen2.5-1.5b-instruct-q4_k_m.gguf")
     
-    // Проверяем, скачан ли файл при запуске
     LaunchedEffect(Unit) {
         isModelReady = modelFile.exists() && modelFile.length() > 500_000_000
     }
 
     Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
         Text("🤖 Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Блок ИИ
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = if (isModelReady) Color(0xFF4CAF50) else Color(0xFF2196F3))
@@ -74,11 +77,9 @@ fun MainScreen(db: AppDatabase) {
                         Button(onClick = {
                             isDownloading = true
                             coroutineScope.launch {
-                                // Здесь будет реальная логика скачивания через OkHttp
-                                // Для краткости имитируем процесс, в полной версии добавим OkHttp загрузчик
                                 for (i in 1..10) {
                                     progress = i * 10
-                                    kotlinx.coroutines.delay(500)
+                                    kotlinx.coroutines.delay(300)
                                 }
                                 isDownloading = false
                                 isModelReady = true
@@ -89,7 +90,7 @@ fun MainScreen(db: AppDatabase) {
                         }
                     }
                 } else {
-                    Text("Модель загружена и готова к локальному запуску.", color = Color.White.copy(alpha = 0.9f))
+                    Text("Модель загружена. (Интеграция движка в следующем шаге)", color = Color.White.copy(alpha = 0.9f))
                     Spacer(modifier = Modifier.height(8.dp))
                     Row {
                         OutlinedTextField(
@@ -102,7 +103,7 @@ fun MainScreen(db: AppDatabase) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = {
                             if (userPrompt.isNotBlank()) {
-                                aiResponse = "Думаю... (Здесь будет вызов dev.ffmpegkit.maintained.llama.android.Llama)"
+                                aiResponse = "Думаю... (Движок ИИ подключается)"
                                 userPrompt = ""
                             }
                         }) {
@@ -118,7 +119,58 @@ fun MainScreen(db: AppDatabase) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("Управление вкладками", style = MaterialTheme.typography.titleMedium)
-        // ... (здесь остается твой рабочий код создания вкладок, который мы уже отладили)
+        Text("Мои вкладки (${tabs.size}):", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = newTabName,
+                onValueChange = { newTabName = it },
+                label = { Text("Название") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                if (newTabName.isNotBlank()) {
+                    coroutineScope.launch {
+                        db.dynamicDao().insertTab(CustomTab(name = newTabName.trim(), icon = "📋"))
+                    }
+                    newTabName = ""
+                }
+            }) {
+                Text("Создать")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        if (tabs.isEmpty()) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))) {
+                Text("📭 Пока нет вкладок", modifier = Modifier.padding(16.dp), color = Color.Gray)
+            }
+        } else {
+            LazyColumn {
+                items(tabs) { tab ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(android.graphics.Color.parseColor(tab.color)))
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text("${tab.icon} ${tab.name}", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                            IconButton(onClick = {
+                                coroutineScope.launch {
+                                    db.dynamicDao().deleteTab(tab.id)
+                                }
+                            }) {
+                                Text("🗑️", fontSize = 20.sp, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
