@@ -10,14 +10,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object LocalAI {
-    const val SERVER_URL = "http://127.0.0.1:8080"
+    const val SERVER_URL = "http://:8080"
     
     suspend fun isServerRunning(): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = URL("$SERVER_URL/health")
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 2000
-            conn.readTimeout = 2000
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
             conn.requestMethod = "GET"
             val code = conn.responseCode
             conn.disconnect()
@@ -29,8 +29,8 @@ object LocalAI {
         try {
             val url = URL("$SERVER_URL/v1/chat/completions")
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 10000
-            conn.readTimeout = 60000
+            conn.connectTimeout = 15000
+            conn.readTimeout = 120000
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
             conn.doOutput = true
