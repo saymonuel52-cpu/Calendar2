@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
@@ -65,7 +64,7 @@ fun MainScreen(db: AppDatabase) {
                 Text(
                     when(aiStatus) {
                         "online" -> "✅ ИИ подключен (Termux)"
-                        "offline" -> "❌ ИИ не запущен. Команда в Termux:\n~/llama.cpp/build/bin/llama-server -m ~/llama.cpp/models/qwen2.5-3b-instruct-q4_k_m.gguf -c 2048 --host 127.0.0.1 --port 8080"
+                        "offline" -> "❌ ИИ не запущен. Запусти в Termux:\n~/llama.cpp/build/bin/llama-server -m ~/llama.cpp/models/qwen2.5-3b-instruct-q4_k_m.gguf -c 2048 --host 127.0.0.1 --port 8080"
                         else -> "⏳ Проверка ИИ..."
                     },
                     color = Color.White,
