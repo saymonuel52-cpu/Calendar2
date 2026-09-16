@@ -7,45 +7,34 @@ plugins {
 android {
     namespace = "com.jarvis.calendar"
     compileSdk = 34
-
     defaultConfig {
         applicationId = "com.jarvis.calendar"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "4.0"
-        
-        // Packaging options для native libs
-        packaging {
-            resources {
-                excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            }
-        }
+        versionCode = 12
+        versionName = "6.0-Final"
     }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-        }
+    buildTypes { 
+        release { 
+            isMinifyEnabled = false 
+        } 
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
+    kotlinOptions { 
+        jvmTarget = "1.8" 
     }
-    buildFeatures {
-        compose = true
+    buildFeatures { 
+        compose = true 
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.5"
+    composeOptions { 
+        kotlinCompilerExtensionVersion = "1.5.5" 
     }
-    
-    // Разрешаем большие APK (для модели)
-    splits {
-        abi {
-            isEnable = false
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 }
@@ -66,8 +55,7 @@ dependencies {
     implementation("org.json:json:20231013")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     
-    // MLC LLM - готовая библиотека для запуска LLM на Android
-    // Используем последнюю стабильную версию
-    implementation("ai.mlc:mlc4w:0.1.0")
-    implementation("ai.mlc:mlc-engine:0.1.0")
+    // 🎯 СЕРЕБРЯНАЯ ПУЛЯ: Готовая prebuilt библиотека llama.cpp для Android
+    // Не требует NDK, работает из коробки, содержит нативные .so файлы
+    implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
 }
