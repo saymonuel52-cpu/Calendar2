@@ -1,6 +1,7 @@
 package com.jarvis.calendar
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -11,10 +12,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
-import com.jarvis.calendar.ai.LocalAI
+import com.jarvis.calendar.ai.LocalModel
 import com.jarvis.calendar.data.*
 import kotlinx.coroutines.launch
 
@@ -37,76 +39,118 @@ fun MainScreen(db: AppDatabase) {
     val tabs by db.dynamicDao().allTabs().collectAsState(initial = emptyList())
     var newTabName by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     
-    var aiStatus by remember { mutableStateOf("checking") }
+    val localModel = remember { LocalModel(context) }
+    var isModelReady by remember { mutableStateOf(localModel.isModelDownloaded()) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0) }
     var aiResponse by remember { mutableStateOf("") }
     var userQuestion by remember { mutableStateOf("") }
     
-    LaunchedEffect(Unit) {
-        aiStatus = if (LocalAI.isServerRunning()) "online" else "offline"
-    }
-    
     Column(modifier = Modifier.padding(16.dp).fillMaxSize()) {
         Text("🤖 Джарвис Календарь", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = when(aiStatus) {
-                    "online" -> Color(0xFF4CAF50)
-                    "offline" -> Color(0xFFFF5722)
-                    else -> Color(0xFFFFC107)
+        // Кнопка скачать ИИ или статус
+        if (!isModelReady) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2196F3))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(" Скачать ИИ-помощника", 
+                         style = MaterialTheme.typography.titleMedium,
+                         color = Color.White)
+                    Text("Локальная модель (~1 ГБ) для работы без интернета", 
+                         style = MaterialTheme.typography.bodySmall,
+                         color = Color.White.copy(alpha = 0.8f))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (isDownloading) {
+                        LinearProgressIndicator(
+                            progress = downloadProgress / 100f,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.White
+                        )
+                        Text("Загрузка: $downloadProgress%", 
+                             color = Color.White,
+                             fontSize = 12.sp)
+                    } else {
+                        Button(onClick = {
+                            isDownloading = true
+                            coroutineScope.launch {
+                                val result = localModel.downloadModel { progress ->
+                                    downloadProgress = progress
+                                }
+                                isDownloading = false
+                                isModelReady = result.isSuccess
+                                Toast.makeText(context, 
+                                    result.getOrElse { "Ошибка: ${it.message}" }, 
+                                    Toast.LENGTH_LONG).show()
+                            }
+                        }, modifier = Modifier.align(Alignment.End)) {
+                            Text("Начать загрузку")
+                        }
+                    }
                 }
-            )
-        ) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    when(aiStatus) {
-                        "online" -> "✅ ИИ подключен (Termux)"
-                        "offline" -> "❌ ИИ не запущен. Запусти в Termux:\n~/llama.cpp/build/bin/llama-server -m ~/llama.cpp/models/qwen2.5-3b-instruct-q4_k_m.gguf -c 2048 --host 127.0.0.1 --port 8080"
-                        else -> "⏳ Проверка ИИ..."
-                    },
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("✅ ИИ готов к работе", 
+                         style = MaterialTheme.typography.titleMedium,
+                         color = Color.White)
+                }
             }
         }
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        if (aiStatus == "online") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = userQuestion,
-                    onValueChange = { userQuestion = it },
-                    label = { Text("Спроси Джарвиса...") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    if (userQuestion.isNotBlank()) {
-                        coroutineScope.launch {
-                            aiResponse = "Думаю..."
-                            aiResponse = LocalAI.chat(userQuestion)
+        // Чат с ИИ (только если модель готова)
+        if (isModelReady) {
+            Card(modifier = Modifier.fillMaxWidth(), 
+                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(" Спроси Джарвиса:", style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = userQuestion,
+                            onValueChange = { userQuestion = it },
+                            label = { Text("Вопрос...") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = {
+                            if (userQuestion.isNotBlank()) {
+                                coroutineScope.launch {
+                                    aiResponse = "Думаю..."
+                                    aiResponse = localModel.generate(userQuestion)
+                                }
+                                userQuestion = ""
+                            }
+                        }, enabled = aiResponse != "Думаю...") {
+                            Text("🚀")
                         }
-                        userQuestion = ""
                     }
-                }) {
-                    Text("🚀")
-                }
-            }
-            if (aiResponse.isNotBlank()) {
-                Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                     colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
-                    Text(aiResponse, modifier = Modifier.padding(12.dp))
+                    
+                    if (aiResponse.isNotBlank() && aiResponse != "Думаю...") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(aiResponse, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
+        // Создание вкладки
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = newTabName,
